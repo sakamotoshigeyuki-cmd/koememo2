@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 async function transcribeWithGoogle(audioBuffer: Buffer): Promise<string> {
-  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_API_KEY
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_API_KEY || process.env.GOOGLE_API_KEY
 
   if (!apiKey) {
+    console.error('Google Cloud API key not found in environment')
     return '[Google Cloud APIキーが設定されていません]'
   }
 
