@@ -20,7 +20,6 @@ export default function Home() {
   const [searchType, setSearchType] = useState<'date' | 'keyword' | 'text'>('text')
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
-  const recognitionRef = useRef<any>(null)
 
   useEffect(() => {
     loadMemos()
@@ -83,54 +82,22 @@ export default function Home() {
     setIsTranscribing(true)
 
     try {
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+      const formData = new FormData()
+      formData.append('audio', audioBlob)
 
-      if (!SpeechRecognition) {
-        await saveRecording(audioBlob, '[このブラウザは音声認識に対応していません]')
-        setIsTranscribing(false)
-        return
-      }
+      const response = await fetch('/api/transcribe', {
+        method: 'POST',
+        body: formData,
+      })
 
-      const recognition = new SpeechRecognition()
-      recognition.lang = 'ja-JP'
-      recognition.continuous = true
-      recognition.interimResults = false
+      const data = await response.json()
+      const text = data.text || '[文字起こしに失敗しました]'
 
-      let transcript = ''
-
-      recognition.onstart = () => {
-        const audio = new Audio(URL.createObjectURL(audioBlob))
-        audio.play()
-      }
-
-      recognition.onresult = (event: any) => {
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          transcript += event.results[i][0].transcript
-        }
-      }
-
-      recognition.onerror = (event: any) => {
-        console.error('Speech recognition error:', event.error)
-        recognition.stop()
-      }
-
-      recognition.onend = async () => {
-        await saveRecording(audioBlob, transcript || '[音声が認識できませんでした]')
-        setIsTranscribing(false)
-      }
-
-      setTimeout(() => {
-        recognition.start()
-      }, 100)
-
-      setTimeout(() => {
-        if (recognition) {
-          recognition.stop()
-        }
-      }, audioBlob.size * 10 + 5000)
+      await saveRecording(audioBlob, text)
     } catch (error) {
       console.error('Transcription error:', error)
-      await saveRecording(audioBlob, '[文字起こしに失敗しました]')
+      await saveRecording(audioBlob, '[文字起こしエラー]')
+    } finally {
       setIsTranscribing(false)
     }
   }

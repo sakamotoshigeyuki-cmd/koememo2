@@ -100,3 +100,38 @@
 - その他対応録音アプリ
 
 前回選択した録音元を記憶し、次回起動時の初期値とする。
+
+---
+
+## 文字起こし機能
+
+### セットアップ
+
+#### Option 1: Google Cloud Speech-to-Text（推奨）
+- **無料枠**: 月60分/月
+- **対応ブラウザ**: すべてのモダンブラウザ（Firefox, Chrome など）
+- **精度**: 高
+
+1. [Google Cloud Console](https://console.cloud.google.com) にアクセス
+2. 新規プロジェクト作成
+3. Speech-to-Text API を有効化
+4. サービスアカウント作成 → JSON キーダウンロード
+5. `.env.local` に設定：
+```
+NEXT_PUBLIC_GOOGLE_API_KEY=AIza...
+```
+
+#### Option 2: OpenAI Whisper API
+- **有料**: 従量課金（オーディオ60秒で $0.36相当）
+- **精度**: 非常に高い
+
+1. [OpenAI API Keys](https://platform.openai.com/api-keys) から API キー取得
+2. `.env.local` に設定：
+```
+OPENAI_API_KEY=sk_...
+```
+
+### 優先順位
+1. `NEXT_PUBLIC_GOOGLE_API_KEY` が設定されていれば Google Cloud を使用
+2. なければ `OPENAI_API_KEY` があれば OpenAI を使用
+3. どちらもなければエラーメッセージを表示
