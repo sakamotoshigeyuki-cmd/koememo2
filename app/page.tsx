@@ -40,6 +40,22 @@ export default function Home() {
     }
   }
 
+  const deleteMemo = async (id: string) => {
+    if (!confirm('このメモを削除しますか？')) return
+
+    try {
+      const response = await fetch(`/api/memos/${id}`, {
+        method: 'DELETE',
+      })
+
+      if (response.ok) {
+        loadMemos()
+      }
+    } catch (error) {
+      console.error('Failed to delete memo:', error)
+    }
+  }
+
   const selectSource = (source: string) => {
     setRecordingSource(source)
     localStorage.setItem('recordingSource', source)
@@ -323,16 +339,20 @@ export default function Home() {
             filteredMemos.map((memo) => (
               <div
                 key={memo.id}
-                className="bg-white rounded-lg shadow-sm p-4 hover:shadow-md transition cursor-pointer"
+                className="bg-white rounded-lg shadow-sm p-4 hover:shadow-md transition flex justify-between items-start gap-3"
               >
-                <div className="flex justify-between items-start mb-2">
-                  <div>
-                    <p className="text-sm font-semibold text-gray-600">
-                      {memo.date} {memo.time}
-                    </p>
-                  </div>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-gray-600">
+                    {memo.date} {memo.time}
+                  </p>
+                  <p className="text-gray-800 line-clamp-2">{memo.text}</p>
                 </div>
-                <p className="text-gray-800 line-clamp-2">{memo.text}</p>
+                <button
+                  onClick={() => deleteMemo(memo.id)}
+                  className="text-xs px-2 py-1 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition flex-shrink-0"
+                >
+                  削除
+                </button>
               </div>
             ))
           )}
