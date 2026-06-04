@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { promises as fs } from 'fs'
-import path from 'path'
+import { neon } from '@neondatabase/serverless'
 
-const MEMOS_DIR = path.join(process.cwd(), '.data/memos')
+const sql = neon(process.env.DATABASE_URL!)
 
 export async function DELETE(
   _request: NextRequest,
@@ -10,19 +9,10 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
-
-    const jsonPath = path.join(MEMOS_DIR, `${id}.json`)
-    const audioPath = path.join(MEMOS_DIR, `${id}.wav`)
-
-    await fs.unlink(jsonPath).catch(() => {})
-    await fs.unlink(audioPath).catch(() => {})
-
+    await sql`DELETE FROM memos WHERE id = ${id}`
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Failed to delete memo:', error)
-    return NextResponse.json(
-      { error: 'Failed to delete memo' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to delete memo' }, { status: 500 })
   }
 }
