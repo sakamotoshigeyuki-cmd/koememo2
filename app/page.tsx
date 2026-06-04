@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useIndexedDB } from '@/lib/useIndexedDB'
 
 interface VoiceMemo {
   id: string
@@ -11,6 +12,7 @@ interface VoiceMemo {
 }
 
 export default function Home() {
+  const db = useIndexedDB()
   const [memos, setMemos] = useState<VoiceMemo[]>([])
   const [isRecording, setIsRecording] = useState(false)
   const [isTranscribing, setIsTranscribing] = useState(false)
@@ -18,6 +20,7 @@ export default function Home() {
   const [showSourceSelect, setShowSourceSelect] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchType, setSearchType] = useState<'date' | 'keyword' | 'text'>('text')
+  const [isOnline, setIsOnline] = useState(true)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
 
@@ -28,16 +31,71 @@ export default function Home() {
       setRecordingSource(saved)
       setShowSourceSelect(false)
     }
-  }, [])
+
+    window.addEventListener('online', () => setIsOnline(true))
+    window.addEventListener('offline', () => setIsOnline(false))
+    setIsOnline(navigator.onLine)
+
+    syncPendingMemos()
+  }, [db.isReady])
 
   const loadMemos = async () => {
     try {
+      if (!navigator.onLine) {
+        const localMemos = await db.getMemos()
+        setMemos(
+          localMemos.map((m) => ({
+            id: m.id,
+            date: m.date,
+            time: m.time,
+            text: m.text,
+            audioUrl: '',
+          }))
+        )
+        return
+      }
+
       const response = await fetch('/api/memos')
       const data = await response.json()
       setMemos(data)
     } catch (error) {
       console.error('Failed to load memos:', error)
+      const localMemos = await db.getMemos()
+      setMemos(
+        localMemos.map((m) => ({
+          id: m.id,
+          date: m.date,
+          time: m.time,
+          text: m.text,
+          audioUrl: '',
+        }))
+      )
     }
+  }
+
+  const syncPendingMemos = async () => {
+    if (!navigator.onLine || !db.isReady) return
+
+    const unsynced = await db.getUnsyncedMemos()
+    for (const memo of unsynced) {
+      try {
+        const formData = new FormData()
+        formData.append('audio', memo.audioBlob)
+        formData.append('text', memo.text)
+
+        const response = await fetch('/api/memos', {
+          method: 'POST',
+          body: formData,
+        })
+
+        if (response.ok) {
+          await db.markAsSynced(memo.id)
+        }
+      } catch (error) {
+        console.error('Failed to sync memo:', memo.id, error)
+      }
+    }
+    loadMemos()
   }
 
   const deleteMemo = async (id: string) => {
@@ -177,6 +235,25 @@ export default function Home() {
   }
 
   const saveRecording = async (audioBlob: Blob, text: string) => {
+    const now = new Date()
+    const date = now.toISOString().split('T')[0]
+    const time = now.toTimeString().slice(0, 5)
+    const id = `memo_${Date.now()}`
+
+    if (!navigator.onLine) {
+      await db.saveMemo({
+        id,
+        date,
+        time,
+        text,
+        audioBlob,
+        synced: false,
+        createdAt: Date.now(),
+      })
+      loadMemos()
+      return
+    }
+
     const formData = new FormData()
     formData.append('audio', audioBlob)
     formData.append('text', text)
@@ -192,6 +269,16 @@ export default function Home() {
       }
     } catch (error) {
       console.error('Failed to save recording:', error)
+      await db.saveMemo({
+        id,
+        date,
+        time,
+        text,
+        audioBlob,
+        synced: false,
+        createdAt: Date.now(),
+      })
+      loadMemos()
     }
   }
 
@@ -254,15 +341,22 @@ export default function Home() {
         <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-2xl font-bold text-gray-800">声メモ2</h1>
-            <button
-              onClick={() => {
-                localStorage.removeItem('recordingSource')
-                setShowSourceSelect(true)
-              }}
-              className="text-sm text-gray-600 hover:text-gray-900"
-            >
-              録音元変更: {recordingSource}
-            </button>
+            <div className="flex gap-3 items-center">
+              {!isOnline && (
+                <span className="text-xs px-2 py-1 bg-yellow-100 text-yellow-800 rounded">
+                  オフラインモード
+                </span>
+              )}
+              <button
+                onClick={() => {
+                  localStorage.removeItem('recordingSource')
+                  setShowSourceSelect(true)
+                }}
+                className="text-sm text-gray-600 hover:text-gray-900"
+              >
+                録音元変更: {recordingSource}
+              </button>
+            </div>
           </div>
 
           {/* Recording Button */}
