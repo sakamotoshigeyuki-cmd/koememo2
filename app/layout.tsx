@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: '声メモ2',
+  title: 'koememo2',
   description: '思いついたことを即座に音声で記録',
 }
 

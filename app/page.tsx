@@ -309,7 +309,7 @@ export default function Home() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
         <div className="bg-white rounded-lg shadow-xl p-8 max-w-md w-full">
-          <h1 className="text-3xl font-bold mb-2 text-center text-gray-800">声メモ2</h1>
+          <h1 className="text-3xl font-bold mb-2 text-center text-gray-800">koememo2</h1>
           <p className="text-center text-gray-600 mb-8">思いついたことを即座に音声で記録</p>
 
           <div className="space-y-3">
@@ -346,7 +346,7 @@ export default function Home() {
         {/* Header */}
         <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
-            <h1 className="text-2xl font-bold text-gray-800">声メモ2</h1>
+            <h1 className="text-2xl font-bold text-gray-800">koememo2</h1>
             <div className="flex gap-3 items-center">
               {!isOnline && (
                 <span className="text-xs px-2 py-1 bg-yellow-100 text-yellow-800 rounded">
