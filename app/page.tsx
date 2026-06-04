@@ -21,6 +21,8 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchType, setSearchType] = useState<'date' | 'keyword' | 'text'>('text')
   const [isOnline, setIsOnline] = useState(true)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editText, setEditText] = useState('')
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
 
@@ -288,6 +290,32 @@ export default function Home() {
     }
   }
 
+  const startEditing = (memo: VoiceMemo) => {
+    setEditingId(memo.id)
+    setEditText(memo.text)
+  }
+
+  const cancelEditing = () => {
+    setEditingId(null)
+    setEditText('')
+  }
+
+  const saveMemoText = async (id: string) => {
+    try {
+      const response = await fetch(`/api/memos/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: editText }),
+      })
+      if (response.ok) {
+        setMemos((prev) => prev.map((m) => (m.id === id ? { ...m, text: editText } : m)))
+        cancelEditing()
+      }
+    } catch (error) {
+      console.error('Failed to update memo:', error)
+    }
+  }
+
   const filterMemos = () => {
     if (!searchQuery) return memos
 
@@ -447,20 +475,59 @@ export default function Home() {
             filteredMemos.map((memo) => (
               <div
                 key={memo.id}
-                className="bg-white rounded-lg shadow-sm p-4 hover:shadow-md transition flex justify-between items-start gap-3"
+                className="bg-white rounded-lg shadow-sm p-4 hover:shadow-md transition"
               >
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-gray-600">
-                    {memo.date} {memo.time}
-                  </p>
-                  <p className="text-gray-800 line-clamp-2">{memo.text}</p>
-                </div>
-                <button
-                  onClick={() => deleteMemo(memo.id)}
-                  className="text-xs px-2 py-1 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition flex-shrink-0"
-                >
-                  削除
-                </button>
+                <p className="text-sm font-semibold text-gray-600 mb-1">
+                  {memo.date} {memo.time}
+                </p>
+                {editingId === memo.id ? (
+                  <div>
+                    <textarea
+                      value={editText}
+                      onChange={(e) => setEditText(e.target.value)}
+                      className="w-full border border-blue-400 rounded-lg p-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                      rows={4}
+                      autoFocus
+                    />
+                    <div className="flex gap-2 mt-2 justify-end">
+                      <button
+                        onClick={cancelEditing}
+                        className="text-xs px-3 py-1 text-gray-600 hover:text-gray-900 border border-gray-300 rounded transition"
+                      >
+                        キャンセル
+                      </button>
+                      <button
+                        onClick={() => saveMemoText(memo.id)}
+                        className="text-xs px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded transition"
+                      >
+                        保存
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex justify-between items-start gap-3">
+                    <p
+                      className="text-gray-800 flex-1 cursor-pointer hover:bg-gray-50 rounded px-1 -mx-1"
+                      onClick={() => startEditing(memo)}
+                    >
+                      {memo.text}
+                    </p>
+                    <div className="flex gap-1 flex-shrink-0">
+                      <button
+                        onClick={() => startEditing(memo)}
+                        className="text-xs px-2 py-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition"
+                      >
+                        編集
+                      </button>
+                      <button
+                        onClick={() => deleteMemo(memo.id)}
+                        className="text-xs px-2 py-1 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition"
+                      >
+                        削除
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             ))
           )}
