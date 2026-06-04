@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
 
     let text: string
 
-    if (process.env.NEXT_PUBLIC_GOOGLE_API_KEY) {
+    if (process.env.GOOGLE_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_API_KEY) {
       text = await transcribeWithGoogle(audioBuffer)
     } else if (process.env.OPENAI_API_KEY) {
       text = await transcribeWithOpenAI(audioBuffer)
