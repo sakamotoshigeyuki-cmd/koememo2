@@ -13,12 +13,14 @@ interface VoiceMemo {
 export default function Home() {
   const [memos, setMemos] = useState<VoiceMemo[]>([])
   const [isRecording, setIsRecording] = useState(false)
+  const [isTranscribing, setIsTranscribing] = useState(false)
   const [recordingSource, setRecordingSource] = useState<string>('')
   const [showSourceSelect, setShowSourceSelect] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchType, setSearchType] = useState<'date' | 'keyword' | 'text'>('text')
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
+  const recognitionRef = useRef<any>(null)
 
   useEffect(() => {
     loadMemos()
@@ -57,7 +59,7 @@ export default function Home() {
 
       mediaRecorder.onstop = async () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' })
-        await saveRecording(audioBlob)
+        await transcribeAndSave(audioBlob)
         stream.getTracks().forEach((track) => track.stop())
       }
 
@@ -77,9 +79,66 @@ export default function Home() {
     }
   }
 
-  const saveRecording = async (audioBlob: Blob) => {
+  const transcribeAndSave = async (audioBlob: Blob) => {
+    setIsTranscribing(true)
+
+    try {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+
+      if (!SpeechRecognition) {
+        await saveRecording(audioBlob, '[このブラウザは音声認識に対応していません]')
+        setIsTranscribing(false)
+        return
+      }
+
+      const recognition = new SpeechRecognition()
+      recognition.lang = 'ja-JP'
+      recognition.continuous = true
+      recognition.interimResults = false
+
+      let transcript = ''
+
+      recognition.onstart = () => {
+        const audio = new Audio(URL.createObjectURL(audioBlob))
+        audio.play()
+      }
+
+      recognition.onresult = (event: any) => {
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          transcript += event.results[i][0].transcript
+        }
+      }
+
+      recognition.onerror = (event: any) => {
+        console.error('Speech recognition error:', event.error)
+        recognition.stop()
+      }
+
+      recognition.onend = async () => {
+        await saveRecording(audioBlob, transcript || '[音声が認識できませんでした]')
+        setIsTranscribing(false)
+      }
+
+      setTimeout(() => {
+        recognition.start()
+      }, 100)
+
+      setTimeout(() => {
+        if (recognition) {
+          recognition.stop()
+        }
+      }, audioBlob.size * 10 + 5000)
+    } catch (error) {
+      console.error('Transcription error:', error)
+      await saveRecording(audioBlob, '[文字起こしに失敗しました]')
+      setIsTranscribing(false)
+    }
+  }
+
+  const saveRecording = async (audioBlob: Blob, text: string) => {
     const formData = new FormData()
     formData.append('audio', audioBlob)
+    formData.append('text', text)
 
     try {
       const response = await fetch('/api/memos', {
@@ -168,14 +227,27 @@ export default function Home() {
           {/* Recording Button */}
           <button
             onClick={isRecording ? stopRecording : startRecording}
+            disabled={isTranscribing}
             className={`w-full py-4 px-6 rounded-lg font-bold text-white text-lg transition ${
               isRecording
                 ? 'bg-red-500 hover:bg-red-600 animate-pulse'
-                : 'bg-blue-500 hover:bg-blue-600'
+                : isTranscribing
+                  ? 'bg-gray-400 cursor-not-allowed'
+                  : 'bg-blue-500 hover:bg-blue-600'
             }`}
           >
-            {isRecording ? '● 録音中...をタップして終了' : '🎙️ 録音を開始'}
+            {isTranscribing
+              ? '⏳ 文字起こし中...'
+              : isRecording
+                ? '● 録音中...をタップして終了'
+                : '🎙️ 録音を開始'}
           </button>
+
+          {isTranscribing && (
+            <p className="text-sm text-gray-500 text-center mt-3">
+              音声を再生して文字起こしを処理しています...
+            </p>
+          )}
         </div>
 
         {/* Search Section */}

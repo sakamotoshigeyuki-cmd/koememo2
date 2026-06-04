@@ -84,6 +84,7 @@ export async function POST(request: NextRequest) {
     await ensureDirExists()
     const formData = await request.formData()
     const audioFile = formData.get('audio') as File
+    const textFromClient = formData.get('text') as string
 
     if (!audioFile) {
       return NextResponse.json(
@@ -101,8 +102,8 @@ export async function POST(request: NextRequest) {
     const audioPath = path.join(MEMOS_DIR, `${id}.wav`)
     await fs.writeFile(audioPath, Buffer.from(audioBuffer))
 
-    let text = '[文字起こし中...]'
-    if (process.env.OPENAI_API_KEY) {
+    let text = textFromClient || '[文字起こし中...]'
+    if (!textFromClient && process.env.OPENAI_API_KEY) {
       text = await transcribeAudio(Buffer.from(audioBuffer))
     }
 
