@@ -78,12 +78,70 @@ export default function Home() {
     }
   }
 
+  const resampleAudio = async (audioBlob: Blob): Promise<Blob> => {
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+    const arrayBuffer = await audioBlob.arrayBuffer()
+    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer)
+
+    const offlineContext = new OfflineAudioContext(
+      1,
+      audioBuffer.duration * 16000,
+      16000
+    )
+    const source = offlineContext.createBufferSource()
+    source.buffer = audioBuffer
+    source.connect(offlineContext.destination)
+    source.start(0)
+
+    const resampledBuffer = await offlineContext.startRendering()
+    const wav = encodeWAV(resampledBuffer)
+    return new Blob([wav], { type: 'audio/wav' })
+  }
+
+  const encodeWAV = (audioBuffer: AudioBuffer): ArrayBuffer => {
+    const channelData = audioBuffer.getChannelData(0)
+    const sampleRate = audioBuffer.sampleRate
+    const length = channelData.length
+
+    const buffer = new ArrayBuffer(44 + length * 2)
+    const view = new DataView(buffer)
+
+    const writeString = (offset: number, string: string) => {
+      for (let i = 0; i < string.length; i++) {
+        view.setUint8(offset + i, string.charCodeAt(i))
+      }
+    }
+
+    writeString(0, 'RIFF')
+    view.setUint32(4, 36 + length * 2, true)
+    writeString(8, 'WAVE')
+    writeString(12, 'fmt ')
+    view.setUint32(16, 16, true)
+    view.setUint16(20, 1, true)
+    view.setUint16(22, 1, true)
+    view.setUint32(24, sampleRate, true)
+    view.setUint32(28, sampleRate * 2, true)
+    view.setUint16(32, 2, true)
+    view.setUint16(34, 16, true)
+    writeString(36, 'data')
+    view.setUint32(40, length * 2, true)
+
+    let offset = 44
+    for (let i = 0; i < length; i++) {
+      view.setInt16(offset, Math.max(-1, Math.min(1, channelData[i])) * 0x7fff, true)
+      offset += 2
+    }
+
+    return buffer
+  }
+
   const transcribeAndSave = async (audioBlob: Blob) => {
     setIsTranscribing(true)
 
     try {
+      const resampledBlob = await resampleAudio(audioBlob)
       const formData = new FormData()
-      formData.append('audio', audioBlob)
+      formData.append('audio', resampledBlob)
 
       const response = await fetch('/api/transcribe', {
         method: 'POST',
@@ -275,13 +333,6 @@ export default function Home() {
                   </div>
                 </div>
                 <p className="text-gray-800 line-clamp-2">{memo.text}</p>
-                {memo.audioUrl && (
-                  <audio
-                    controls
-                    className="w-full mt-3 h-8"
-                    src={memo.audioUrl}
-                  />
-                )}
               </div>
             ))
           )}

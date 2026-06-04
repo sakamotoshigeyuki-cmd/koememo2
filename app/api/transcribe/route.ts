@@ -21,6 +21,7 @@ async function transcribeWithGoogle(audioBuffer: Buffer): Promise<string> {
           config: {
             encoding: 'LINEAR16',
             languageCode: 'ja-JP',
+            sampleRateHertz: 16000,
             audioChannelCount: 1,
           },
           audio: {
