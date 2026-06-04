@@ -32,8 +32,14 @@ export default function Home() {
       setShowSourceSelect(false)
     }
 
-    window.addEventListener('online', () => setIsOnline(true))
-    window.addEventListener('offline', () => setIsOnline(false))
+    const handleOnline = () => {
+      setIsOnline(true)
+      setTimeout(() => syncPendingMemos(), 500)
+    }
+    const handleOffline = () => setIsOnline(false)
+
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
     setIsOnline(navigator.onLine)
 
     syncPendingMemos()
@@ -346,6 +352,14 @@ export default function Home() {
                 <span className="text-xs px-2 py-1 bg-yellow-100 text-yellow-800 rounded">
                   オフラインモード
                 </span>
+              )}
+              {isOnline && (
+                <button
+                  onClick={syncPendingMemos}
+                  className="text-xs px-2 py-1 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded transition"
+                >
+                  同期
+                </button>
               )}
               <button
                 onClick={() => {
