@@ -344,14 +344,29 @@ export default function Home() {
     setEditText('')
   }
 
+  const extractNewWords = (oldText: string, newText: string): string[] => {
+    const oldWords = new Set(oldText.split(/[\s、。！？,.!?\n]+/).filter((w) => w.length >= 2))
+    const newWords = newText.split(/[\s、。！？,.!?\n]+/).filter((w) => w.length >= 2)
+    return [...new Set(newWords.filter((w) => !oldWords.has(w)))]
+  }
+
   const saveMemoText = async (id: string) => {
     try {
+      const oldText = memos.find((m) => m.id === id)?.text || ''
       const response = await fetch(`/api/memos/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: editText }),
       })
       if (response.ok) {
+        const newWords = extractNewWords(oldText, editText)
+        if (newWords.length > 0) {
+          fetch('/api/vocab', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ words: newWords }),
+          })
+        }
         setMemos((prev) => prev.map((m) => (m.id === id ? { ...m, text: editText } : m)))
         cancelEditing()
       }

@@ -1,4 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { neon } from '@neondatabase/serverless'
+
+const sql = neon(process.env.DATABASE_URL!)
+
+async function getVocabPrompt(): Promise<string> {
+  try {
+    const rows = await sql`SELECT word FROM vocab_hints ORDER BY created_at DESC LIMIT 50`
+    return rows.map((r) => r.word).join('、')
+  } catch {
+    return ''
+  }
+}
 
 async function transcribeWithGoogle(audioBuffer: Buffer): Promise<string> {
   const apiKey = process.env.GOOGLE_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_API_KEY
@@ -59,10 +71,13 @@ async function transcribeWithOpenAI(audioBuffer: Buffer): Promise<string> {
     return '[OpenAI APIキーが設定されていません]'
   }
 
+  const prompt = await getVocabPrompt()
   const formData = new FormData()
   const audioBlob = new Blob([new Uint8Array(audioBuffer)], { type: 'audio/wav' })
   formData.append('file', audioBlob, 'audio.wav')
   formData.append('model', 'whisper-1')
+  formData.append('language', 'ja')
+  if (prompt) formData.append('prompt', prompt)
 
   try {
     const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
