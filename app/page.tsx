@@ -23,8 +23,10 @@ export default function Home() {
   const [isOnline, setIsOnline] = useState(true)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editText, setEditText] = useState('')
+  const [importProgress, setImportProgress] = useState<{ current: number; total: number } | null>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
     loadMemos()
@@ -290,6 +292,36 @@ export default function Home() {
     }
   }
 
+  const importPixelWatchFiles = async (files: FileList) => {
+    const audioFiles = Array.from(files).filter((f) => f.type.startsWith('audio/') || f.name.endsWith('.m4a'))
+    if (audioFiles.length === 0) return
+
+    setImportProgress({ current: 0, total: audioFiles.length })
+
+    for (let i = 0; i < audioFiles.length; i++) {
+      setImportProgress({ current: i + 1, total: audioFiles.length })
+      const file = audioFiles[i]
+
+      try {
+        const resampledBlob = await resampleAudio(file)
+        const formData = new FormData()
+        formData.append('audio', resampledBlob)
+
+        const response = await fetch('/api/transcribe', { method: 'POST', body: formData })
+        const data = await response.json()
+        const text = data.text || '[文字起こしに失敗しました]'
+
+        await saveRecording(file, text)
+      } catch (error) {
+        console.error('Failed to import file:', file.name, error)
+        await saveRecording(file, `[インポートエラー: ${file.name}]`)
+      }
+    }
+
+    setImportProgress(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
   const startEditing = (memo: VoiceMemo) => {
     setEditingId(memo.id)
     setEditText(memo.text)
@@ -417,29 +449,64 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Recording Button */}
-          <button
-            onClick={isRecording ? stopRecording : startRecording}
-            disabled={isTranscribing}
-            className={`w-full py-4 px-6 rounded-lg font-bold text-white text-lg transition ${
-              isRecording
-                ? 'bg-red-500 hover:bg-red-600 animate-pulse'
-                : isTranscribing
-                  ? 'bg-gray-400 cursor-not-allowed'
-                  : 'bg-blue-500 hover:bg-blue-600'
-            }`}
-          >
-            {isTranscribing
-              ? '⏳ 文字起こし中...'
-              : isRecording
-                ? '● 録音中...をタップして終了'
-                : '🎙️ 録音を開始'}
-          </button>
-
-          {isTranscribing && (
-            <p className="text-sm text-gray-500 text-center mt-3">
-              音声を再生して文字起こしを処理しています...
-            </p>
+          {/* Recording / Import UI */}
+          {recordingSource === 'Pixel Watch' ? (
+            <div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".m4a,audio/*"
+                multiple
+                className="hidden"
+                onChange={(e) => e.target.files && importPixelWatchFiles(e.target.files)}
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={!!importProgress}
+                className={`w-full py-4 px-6 rounded-lg font-bold text-white text-lg transition ${
+                  importProgress ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600'
+                }`}
+              >
+                {importProgress
+                  ? `⏳ 処理中... ${importProgress.current} / ${importProgress.total}`
+                  : '📂 録音ファイルを選択（複数可）'}
+              </button>
+              {importProgress && (
+                <div className="mt-3">
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className="bg-green-500 h-2 rounded-full transition-all"
+                      style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div>
+              <button
+                onClick={isRecording ? stopRecording : startRecording}
+                disabled={isTranscribing}
+                className={`w-full py-4 px-6 rounded-lg font-bold text-white text-lg transition ${
+                  isRecording
+                    ? 'bg-red-500 hover:bg-red-600 animate-pulse'
+                    : isTranscribing
+                      ? 'bg-gray-400 cursor-not-allowed'
+                      : 'bg-blue-500 hover:bg-blue-600'
+                }`}
+              >
+                {isTranscribing
+                  ? '⏳ 文字起こし中...'
+                  : isRecording
+                    ? '● 録音中...をタップして終了'
+                    : '🎙️ 録音を開始'}
+              </button>
+              {isTranscribing && (
+                <p className="text-sm text-gray-500 text-center mt-3">
+                  音声を再生して文字起こしを処理しています...
+                </p>
+              )}
+            </div>
           )}
         </div>
 
