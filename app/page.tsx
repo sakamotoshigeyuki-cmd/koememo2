@@ -316,6 +316,22 @@ export default function Home() {
     }
   }
 
+  const exportToCSV = () => {
+    const rows = filterMemos().map((m) => [
+      m.date,
+      m.time,
+      `"${m.text.replace(/"/g, '""')}"`,
+    ])
+    const csv = [['日付', '時刻', 'テキスト'], ...rows].map((r) => r.join(',')).join('\n')
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `koememo_${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   const filterMemos = () => {
     if (!searchQuery) return memos
 
@@ -460,6 +476,15 @@ export default function Home() {
                 ✕
               </button>
             )}
+          </div>
+          <div className="flex justify-end">
+            <button
+              onClick={exportToCSV}
+              disabled={filteredMemos.length === 0}
+              className="text-xs px-3 py-1 bg-green-500 hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded transition"
+            >
+              CSV出力 ({filteredMemos.length}件)
+            </button>
           </div>
         </div>
 
