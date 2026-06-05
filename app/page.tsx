@@ -302,6 +302,12 @@ export default function Home() {
       setImportProgress({ current: i + 1, total: audioFiles.length })
       const file = audioFiles[i]
 
+      // ファイルの録音日時をIDに使い重複を防ぐ
+      const recorded = new Date(file.lastModified)
+      const id = `memo_pw_${file.lastModified}`
+      const date = recorded.toISOString().split('T')[0]
+      const time = recorded.toTimeString().slice(0, 5)
+
       try {
         const resampledBlob = await resampleAudio(file)
         const formData = new FormData()
@@ -311,15 +317,21 @@ export default function Home() {
         const data = await response.json()
         const text = data.text || '[文字起こしに失敗しました]'
 
-        await saveRecording(file, text)
+        const saveResponse = await fetch('/api/memos', {
+          method: 'POST',
+          body: (() => { const fd = new FormData(); fd.append('id', id); fd.append('audio', file); fd.append('text', text); fd.append('date', date); fd.append('time', time); return fd })(),
+        })
+        if (!saveResponse.ok && saveResponse.status !== 409) {
+          console.error('Failed to save:', file.name)
+        }
       } catch (error) {
         console.error('Failed to import file:', file.name, error)
-        await saveRecording(file, `[インポートエラー: ${file.name}]`)
       }
     }
 
     setImportProgress(null)
     if (fileInputRef.current) fileInputRef.current.value = ''
+    loadMemos()
   }
 
   const startEditing = (memo: VoiceMemo) => {
@@ -455,8 +467,8 @@ export default function Home() {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".m4a,audio/*"
-                multiple
+                // @ts-expect-error webkitdirectory is not in standard types
+                webkitdirectory=""
                 className="hidden"
                 onChange={(e) => e.target.files && importPixelWatchFiles(e.target.files)}
               />

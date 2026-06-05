@@ -35,16 +35,20 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
     const textFromClient = formData.get('text') as string
+    const clientId = formData.get('id') as string | null
+    const clientDate = formData.get('date') as string | null
+    const clientTime = formData.get('time') as string | null
 
     const now = new Date()
-    const date = now.toISOString().split('T')[0]
-    const time = now.toTimeString().slice(0, 5)
-    const id = `memo_${Date.now()}`
+    const id = clientId || `memo_${Date.now()}`
+    const date = clientDate || now.toISOString().split('T')[0]
+    const time = clientTime || now.toTimeString().slice(0, 5)
     const text = textFromClient || '[文字起こし中...]'
 
     await sql`
       INSERT INTO memos (id, date, time, text, created_at)
       VALUES (${id}, ${date}, ${time}, ${text}, ${Date.now()})
+      ON CONFLICT (id) DO NOTHING
     `
 
     const memo: Memo = { id, date, time, text, audioUrl: '' }
