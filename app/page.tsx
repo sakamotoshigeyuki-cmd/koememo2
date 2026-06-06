@@ -418,7 +418,7 @@ export default function Home() {
                 }}
                 className="text-sm text-gray-600 hover:text-gray-900"
               >
-                録音元変更: {recordingSource}
+                🎙️
               </button>
             </div>
           </div>
