@@ -384,12 +384,6 @@ export default function Home() {
             >
               Pixel Watch
             </button>
-            <button
-              onClick={() => selectSource('その他対応録音アプリ')}
-              className="w-full px-4 py-3 bg-purple-500 hover:bg-purple-600 text-white rounded-lg font-medium transition"
-            >
-              その他対応録音アプリ
-            </button>
           </div>
         </div>
       </div>
@@ -416,9 +410,9 @@ export default function Home() {
                   localStorage.removeItem('recordingSource')
                   setShowSourceSelect(true)
                 }}
-                className="text-sm text-gray-600 hover:text-gray-900"
+                className="text-2xl leading-none text-gray-600 hover:text-gray-900"
               >
-                🎙️
+                {recordingSource === 'Pixel Watch' ? '⌚' : '🎙️'}
               </button>
             </div>
           </div>
