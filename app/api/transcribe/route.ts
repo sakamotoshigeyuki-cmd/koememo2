@@ -5,11 +5,35 @@ const sql = neon(process.env.DATABASE_URL!)
 
 async function getVocabPrompt(): Promise<string> {
   try {
-    const rows = await sql`SELECT word FROM vocab_hints ORDER BY created_at DESC LIMIT 50`
-    return rows.map((r) => r.word).join('、')
+    const [vocabRows, correctionRows] = await Promise.all([
+      sql`SELECT word FROM vocab_hints ORDER BY created_at DESC LIMIT 30`,
+      sql`SELECT correct FROM corrections ORDER BY count DESC LIMIT 20`,
+    ])
+    const parts = [
+      ...vocabRows.map((r) => r.word),
+      ...correctionRows.map((r) => r.correct),
+    ]
+    return [...new Set(parts)].join('、')
   } catch {
     return ''
   }
+}
+
+async function getCorrections(): Promise<{ wrong: string; correct: string }[]> {
+  try {
+    const rows = await sql`SELECT wrong, correct FROM corrections ORDER BY count DESC LIMIT 200`
+    return rows as { wrong: string; correct: string }[]
+  } catch {
+    return []
+  }
+}
+
+function applyCorrections(text: string, corrections: { wrong: string; correct: string }[]): string {
+  let result = text
+  for (const { wrong, correct } of corrections) {
+    result = result.split(wrong).join(correct)
+  }
+  return result
 }
 
 async function transcribeWithGoogle(audioBuffer: Buffer): Promise<string> {
@@ -121,6 +145,11 @@ export async function POST(request: NextRequest) {
       text = await transcribeWithGoogle(audioBuffer)
     } else {
       text = '[APIキーが設定されていません。.env.localを確認してください]'
+    }
+
+    const corrections = await getCorrections()
+    if (corrections.length > 0) {
+      text = applyCorrections(text, corrections)
     }
 
     return NextResponse.json({ text })

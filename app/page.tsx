@@ -287,10 +287,29 @@ export default function Home() {
     setEditText('')
   }
 
-  const extractNewWords = (oldText: string, newText: string): string[] => {
-    const oldWords = new Set(oldText.split(/[\s、。！？,.!?\n]+/).filter((w) => w.length >= 2))
-    const newWords = newText.split(/[\s、。！？,.!?\n]+/).filter((w) => w.length >= 2)
-    return [...new Set(newWords.filter((w) => !oldWords.has(w)))]
+  const extractCorrections = (oldText: string, newText: string): { wrong: string; correct: string }[] => {
+    if (oldText === newText) return []
+
+    // 前から一致する長さを探す
+    let lo = 0
+    while (lo < oldText.length && lo < newText.length && oldText[lo] === newText[lo]) lo++
+
+    // 後ろから一致する長さを探す
+    let ro = 0
+    while (
+      ro < oldText.length - lo &&
+      ro < newText.length - lo &&
+      oldText[oldText.length - 1 - ro] === newText[newText.length - 1 - ro]
+    ) ro++
+
+    const wrong = ro > 0 ? oldText.slice(lo, -ro) : oldText.slice(lo)
+    const correct = ro > 0 ? newText.slice(lo, -ro) : newText.slice(lo)
+
+    // 2文字以上30文字以下の意味ある修正だけ保存
+    if (wrong.length >= 2 && correct.length >= 2 && wrong.length <= 30 && correct.length <= 30) {
+      return [{ wrong, correct }]
+    }
+    return []
   }
 
   const saveMemoText = async (id: string) => {
@@ -302,12 +321,12 @@ export default function Home() {
         body: JSON.stringify({ text: editText }),
       })
       if (response.ok) {
-        const newWords = extractNewWords(oldText, editText)
-        if (newWords.length > 0) {
-          fetch('/api/vocab', {
+        const corrections = extractCorrections(oldText, editText)
+        if (corrections.length > 0) {
+          fetch('/api/corrections', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ words: newWords }),
+            body: JSON.stringify({ corrections }),
           })
         }
         setMemos((prev) => prev.map((m) => (m.id === id ? { ...m, text: editText } : m)))
