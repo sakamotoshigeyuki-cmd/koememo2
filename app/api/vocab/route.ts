@@ -40,3 +40,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to save' }, { status: 500 })
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  try {
+    await ensureTable()
+    const { word } = await request.json()
+    await sql`DELETE FROM vocab_hints WHERE word = ${word}`
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('Failed to delete vocab hint:', error)
+    return NextResponse.json({ error: 'Failed to delete' }, { status: 500 })
+  }
+}

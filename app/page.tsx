@@ -24,6 +24,9 @@ export default function Home() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editText, setEditText] = useState('')
   const [importProgress, setImportProgress] = useState<{ current: number; total: number } | null>(null)
+  const [showVocab, setShowVocab] = useState(false)
+  const [vocabList, setVocabList] = useState<string[]>([])
+  const [vocabInput, setVocabInput] = useState('')
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -287,6 +290,38 @@ export default function Home() {
     setEditText('')
   }
 
+  const loadVocab = async () => {
+    const res = await fetch('/api/vocab')
+    const words = await res.json()
+    setVocabList(words)
+  }
+
+  const addVocabWord = async () => {
+    const word = vocabInput.trim()
+    if (!word) return
+    await fetch('/api/vocab', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ words: [word] }),
+    })
+    setVocabInput('')
+    loadVocab()
+  }
+
+  const deleteVocabWord = async (word: string) => {
+    await fetch('/api/vocab', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ word }),
+    })
+    loadVocab()
+  }
+
+  const toggleVocab = () => {
+    if (!showVocab) loadVocab()
+    setShowVocab((v) => !v)
+  }
+
   const extractCorrections = (oldText: string, newText: string): { wrong: string; correct: string }[] => {
     if (oldText === newText) return []
 
@@ -402,8 +437,53 @@ export default function Home() {
                 <option value="スマホ標準レコーダー">🎙️</option>
                 <option value="Pixel Watch">⌚</option>
               </select>
+              <button
+                onClick={toggleVocab}
+                className="text-xs px-2 py-1 text-gray-500 hover:text-gray-800 border border-gray-200 rounded transition"
+              >
+                単語登録
+              </button>
             </div>
           </div>
+
+          {showVocab && (
+            <div className="mt-4 border-t pt-4">
+              <p className="text-xs text-gray-500 mb-2">ここに登録した単語をWhisperの認識ヒントとして渡します</p>
+              <div className="flex gap-2 mb-3">
+                <input
+                  type="text"
+                  value={vocabInput}
+                  onChange={(e) => setVocabInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && addVocabWord()}
+                  placeholder="例: 新興建設"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <button
+                  onClick={addVocabWord}
+                  className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm rounded-lg transition"
+                >
+                  追加
+                </button>
+              </div>
+              {vocabList.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {vocabList.map((word) => (
+                    <span key={word} className="flex items-center gap-1 px-2 py-1 bg-gray-100 rounded text-sm">
+                      {word}
+                      <button
+                        onClick={() => deleteVocabWord(word)}
+                        className="text-gray-400 hover:text-red-500 leading-none"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400">登録済みの単語はありません</p>
+              )}
+            </div>
+          )}
 
           {/* Recording / Import UI */}
           {recordingSource === 'Pixel Watch' ? (
