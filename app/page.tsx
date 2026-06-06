@@ -162,132 +162,74 @@ export default function Home() {
     }
   }
 
-  const resampleAudio = async (audioBlob: Blob): Promise<Blob> => {
-    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
-    const arrayBuffer = await audioBlob.arrayBuffer()
-    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer)
-
-    const offlineContext = new OfflineAudioContext(
-      1,
-      audioBuffer.duration * 16000,
-      16000
-    )
-    const source = offlineContext.createBufferSource()
-    source.buffer = audioBuffer
-    source.connect(offlineContext.destination)
-    source.start(0)
-
-    const resampledBuffer = await offlineContext.startRendering()
-    const wav = encodeWAV(resampledBuffer)
-    return new Blob([wav], { type: 'audio/wav' })
-  }
-
-  const encodeWAV = (audioBuffer: AudioBuffer): ArrayBuffer => {
-    const channelData = audioBuffer.getChannelData(0)
-    const sampleRate = audioBuffer.sampleRate
-    const length = channelData.length
-
-    const buffer = new ArrayBuffer(44 + length * 2)
-    const view = new DataView(buffer)
-
-    const writeString = (offset: number, string: string) => {
-      for (let i = 0; i < string.length; i++) {
-        view.setUint8(offset + i, string.charCodeAt(i))
-      }
-    }
-
-    writeString(0, 'RIFF')
-    view.setUint32(4, 36 + length * 2, true)
-    writeString(8, 'WAVE')
-    writeString(12, 'fmt ')
-    view.setUint32(16, 16, true)
-    view.setUint16(20, 1, true)
-    view.setUint16(22, 1, true)
-    view.setUint32(24, sampleRate, true)
-    view.setUint32(28, sampleRate * 2, true)
-    view.setUint16(32, 2, true)
-    view.setUint16(34, 16, true)
-    writeString(36, 'data')
-    view.setUint32(40, length * 2, true)
-
-    let offset = 44
-    for (let i = 0; i < length; i++) {
-      view.setInt16(offset, Math.max(-1, Math.min(1, channelData[i])) * 0x7fff, true)
-      offset += 2
-    }
-
-    return buffer
+  const saveAudioLocally = (audioBlob: Blob, id: string) => {
+    const ext = audioBlob.type.includes('mp4') ? 'mp4'
+              : audioBlob.type.includes('ogg') ? 'ogg'
+              : 'webm'
+    const url = URL.createObjectURL(audioBlob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${id}.${ext}`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   const transcribeAndSave = async (audioBlob: Blob) => {
     setIsTranscribing(true)
 
-    try {
-      const resampledBlob = await resampleAudio(audioBlob)
-      const formData = new FormData()
-      formData.append('audio', resampledBlob)
-
-      const response = await fetch('/api/transcribe', {
-        method: 'POST',
-        body: formData,
-      })
-
-      const data = await response.json()
-      const text = data.text || '[文字起こしに失敗しました]'
-
-      await saveRecording(audioBlob, text)
-    } catch (error) {
-      console.error('Transcription error:', error)
-      await saveRecording(audioBlob, '[文字起こしエラー]')
-    } finally {
-      setIsTranscribing(false)
-    }
-  }
-
-  const saveRecording = async (audioBlob: Blob, text: string) => {
     const now = new Date()
     const date = now.toISOString().split('T')[0]
     const time = now.toTimeString().slice(0, 5)
     const id = `memo_${Date.now()}`
 
+    // 録音停止と同時にローカル保存（ダウンロード）
+    saveAudioLocally(audioBlob, id)
+
+    // 録音停止と同時にDBに保存（文字起こし前）
     if (!navigator.onLine) {
-      await db.saveMemo({
-        id,
-        date,
-        time,
-        text,
-        audioBlob,
-        synced: false,
-        createdAt: Date.now(),
-      })
+      await db.saveMemo({ id, date, time, text: '[文字起こし中...]', audioBlob, synced: false, createdAt: Date.now() })
       loadMemos()
+      setIsTranscribing(false)
       return
     }
 
-    const formData = new FormData()
-    formData.append('audio', audioBlob)
-    formData.append('text', text)
-
+    const saveFormData = new FormData()
+    saveFormData.append('id', id)
+    saveFormData.append('date', date)
+    saveFormData.append('time', time)
+    saveFormData.append('text', '[文字起こし中...]')
     try {
-      const response = await fetch('/api/memos', {
-        method: 'POST',
-        body: formData,
-      })
+      await fetch('/api/memos', { method: 'POST', body: saveFormData })
+    } catch {
+      await db.saveMemo({ id, date, time, text: '[文字起こし中...]', audioBlob, synced: false, createdAt: Date.now() })
+    }
+    loadMemos()
 
-      if (response.ok) {
-        loadMemos()
-      }
-    } catch (error) {
-      console.error('Failed to save recording:', error)
-      await db.saveMemo({
-        id,
-        date,
-        time,
-        text,
-        audioBlob,
-        synced: false,
-        createdAt: Date.now(),
+    // 文字起こし → 完了後にテキスト更新
+    try {
+      const ext = audioBlob.type.includes('mp4') ? 'mp4'
+                : audioBlob.type.includes('ogg') ? 'ogg'
+                : 'webm'
+      const formData = new FormData()
+      formData.append('audio', audioBlob, `audio.${ext}`)
+      const response = await fetch('/api/transcribe', { method: 'POST', body: formData })
+      const data = await response.json()
+      const text = data.text || '[文字起こしに失敗しました]'
+
+      await fetch(`/api/memos/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
       })
+    } catch (error) {
+      console.error('Transcription error:', error)
+      await fetch(`/api/memos/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: '[文字起こしエラー]' }),
+      }).catch(() => {})
+    } finally {
+      setIsTranscribing(false)
       loadMemos()
     }
   }
@@ -309,9 +251,8 @@ export default function Home() {
       const time = recorded.toTimeString().slice(0, 5)
 
       try {
-        const resampledBlob = await resampleAudio(file)
         const formData = new FormData()
-        formData.append('audio', resampledBlob)
+        formData.append('audio', file, file.name)
 
         const response = await fetch('/api/transcribe', { method: 'POST', body: formData })
         const data = await response.json()

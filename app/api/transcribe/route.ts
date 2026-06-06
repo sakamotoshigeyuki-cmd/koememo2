@@ -64,7 +64,7 @@ async function transcribeWithGoogle(audioBuffer: Buffer): Promise<string> {
   }
 }
 
-async function transcribeWithOpenAI(audioBuffer: Buffer): Promise<string> {
+async function transcribeWithOpenAI(audioFile: File): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY
 
   if (!apiKey) {
@@ -73,8 +73,7 @@ async function transcribeWithOpenAI(audioBuffer: Buffer): Promise<string> {
 
   const prompt = await getVocabPrompt()
   const formData = new FormData()
-  const audioBlob = new Blob([new Uint8Array(audioBuffer)], { type: 'audio/wav' })
-  formData.append('file', audioBlob, 'audio.wav')
+  formData.append('file', audioFile, audioFile.name || 'audio.webm')
   formData.append('model', 'whisper-1')
   formData.append('language', 'ja')
   if (prompt) formData.append('prompt', prompt)
@@ -113,13 +112,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const audioBuffer = Buffer.from(await audioFile.arrayBuffer())
-
     let text: string
 
     if (process.env.OPENAI_API_KEY) {
-      text = await transcribeWithOpenAI(audioBuffer)
+      text = await transcribeWithOpenAI(audioFile)
     } else if (process.env.GOOGLE_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_API_KEY) {
+      const audioBuffer = Buffer.from(await audioFile.arrayBuffer())
       text = await transcribeWithGoogle(audioBuffer)
     } else {
       text = '[APIキーが設定されていません。.env.localを確認してください]'
