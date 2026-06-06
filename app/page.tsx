@@ -162,7 +162,15 @@ export default function Home() {
     }
   }
 
-  const saveAudioLocally = (audioBlob: Blob, id: string) => {
+  const transcribeAndSave = async (audioBlob: Blob) => {
+    setIsTranscribing(true)
+
+    const now = new Date()
+    const date = now.toISOString().split('T')[0]
+    const time = now.toTimeString().slice(0, 5)
+    const id = `memo_${Date.now()}`
+
+    // 録音停止と同時にDownloadsフォルダに保存
     const ext = audioBlob.type.includes('mp4') ? 'mp4'
               : audioBlob.type.includes('ogg') ? 'ogg'
               : 'webm'
@@ -172,18 +180,6 @@ export default function Home() {
     a.download = `${id}.${ext}`
     a.click()
     URL.revokeObjectURL(url)
-  }
-
-  const transcribeAndSave = async (audioBlob: Blob) => {
-    setIsTranscribing(true)
-
-    const now = new Date()
-    const date = now.toISOString().split('T')[0]
-    const time = now.toTimeString().slice(0, 5)
-    const id = `memo_${Date.now()}`
-
-    // 録音停止と同時にローカル保存（ダウンロード）
-    saveAudioLocally(audioBlob, id)
 
     // 録音停止と同時にDBに保存（文字起こし前）
     if (!navigator.onLine) {
@@ -199,7 +195,8 @@ export default function Home() {
     saveFormData.append('time', time)
     saveFormData.append('text', '[文字起こし中...]')
     try {
-      await fetch('/api/memos', { method: 'POST', body: saveFormData })
+      const res = await fetch('/api/memos', { method: 'POST', body: saveFormData })
+      if (!res.ok) throw new Error('save failed')
     } catch {
       await db.saveMemo({ id, date, time, text: '[文字起こし中...]', audioBlob, synced: false, createdAt: Date.now() })
     }
@@ -207,11 +204,9 @@ export default function Home() {
 
     // 文字起こし → 完了後にテキスト更新
     try {
-      const ext = audioBlob.type.includes('mp4') ? 'mp4'
-                : audioBlob.type.includes('ogg') ? 'ogg'
-                : 'webm'
       const formData = new FormData()
       formData.append('audio', audioBlob, `audio.${ext}`)
+
       const response = await fetch('/api/transcribe', { method: 'POST', body: formData })
       const data = await response.json()
       const text = data.text || '[文字起こしに失敗しました]'
@@ -573,6 +568,9 @@ export default function Home() {
                       {memo.text}
                     </p>
                     <div className="flex gap-1 flex-shrink-0">
+                      {memo.audioUrl && (
+                        <audio controls src={`/api/audio/${memo.id}`} className="h-7 w-28" />
+                      )}
                       <button
                         onClick={() => startEditing(memo)}
                         className="text-xs px-2 py-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition"

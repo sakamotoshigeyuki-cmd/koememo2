@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { promises as fs } from 'fs'
-import path from 'path'
+import { neon } from '@neondatabase/serverless'
 
-const MEMOS_DIR = path.join(process.cwd(), '.data/memos')
+const sql = neon(process.env.DATABASE_URL!)
 
 export async function GET(
   _request: NextRequest,
@@ -10,22 +9,30 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    const audioPath = path.join(MEMOS_DIR, `${id}.wav`)
 
-    const audioBuffer = await fs.readFile(audioPath)
+    const rows = await sql`SELECT audio_url FROM memos WHERE id = ${id}`
+    const audioUrl = rows[0]?.audio_url
+
+    if (!audioUrl) {
+      return NextResponse.json({ error: 'Audio not found' }, { status: 404 })
+    }
+
+    const response = await fetch(audioUrl)
+    if (!response.ok) {
+      return NextResponse.json({ error: 'Failed to fetch audio' }, { status: 502 })
+    }
+
+    const contentType = response.headers.get('content-type') || 'audio/webm'
+    const audioBuffer = await response.arrayBuffer()
 
     return new NextResponse(audioBuffer, {
       headers: {
-        'Content-Type': 'audio/wav',
-        'Content-Disposition': `inline; filename="${id}.wav"`,
-        'Cache-Control': 'public, max-age=31536000, immutable',
+        'Content-Type': contentType,
+        'Cache-Control': 'private, max-age=3600',
       },
     })
   } catch (error) {
     console.error('Failed to serve audio:', error)
-    return NextResponse.json(
-      { error: 'Audio file not found' },
-      { status: 404 }
-    )
+    return NextResponse.json({ error: 'Audio not found' }, { status: 404 })
   }
 }
