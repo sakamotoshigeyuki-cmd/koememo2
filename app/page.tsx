@@ -411,14 +411,6 @@ export default function Home() {
                   オフラインモード
                 </span>
               )}
-              {isOnline && (
-                <button
-                  onClick={syncPendingMemos}
-                  className="text-xs px-2 py-1 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded transition"
-                >
-                  同期
-                </button>
-              )}
               <button
                 onClick={() => {
                   localStorage.removeItem('recordingSource')
