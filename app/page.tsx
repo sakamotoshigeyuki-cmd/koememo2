@@ -19,7 +19,8 @@ export default function Home() {
   const [recordingSource, setRecordingSource] = useState<string>('')
   const [showSourceSelect, setShowSourceSelect] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
-  const [searchType, setSearchType] = useState<'date' | 'keyword' | 'text'>('text')
+  const [searchType, setSearchType] = useState<'date' | 'text'>('text')
+  const [quickFilter, setQuickFilter] = useState<'today' | 'week' | 'month' | 'all'>('today')
   const [isOnline, setIsOnline] = useState(true)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editText, setEditText] = useState('')
@@ -328,20 +329,29 @@ export default function Home() {
   }
 
   const filterMemos = () => {
-    if (!searchQuery) return memos
+    const today = new Date().toISOString().split('T')[0]
+    const weekAgo = new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    const monthPrefix = today.slice(0, 7)
 
-    return memos.filter((memo) => {
-      switch (searchType) {
-        case 'date':
-          return memo.date.includes(searchQuery)
-        case 'keyword':
-          return memo.text.includes(searchQuery)
-        case 'text':
-          return memo.text.includes(searchQuery)
-        default:
-          return true
+    if (!searchQuery) {
+      switch (quickFilter) {
+        case 'today': return memos.filter(m => m.date === today)
+        case 'week':  return memos.filter(m => m.date >= weekAgo)
+        case 'month': return memos.filter(m => m.date.startsWith(monthPrefix))
+        case 'all':   return memos
       }
-    })
+    }
+
+    if (searchType === 'date') {
+      if (searchQuery.includes('~')) {
+        const [from, to] = searchQuery.split('~').map(s => s.trim())
+        return memos.filter(m => m.date >= from && m.date <= to)
+      }
+      return memos.filter(m => m.date.includes(searchQuery))
+    }
+
+    const terms = searchQuery.trim().split(/\s+/).filter(Boolean)
+    return memos.filter(m => terms.every(term => m.text.includes(term)))
   }
 
   if (showSourceSelect) {
@@ -474,37 +484,48 @@ export default function Home() {
         </div>
 
         {/* Search Section */}
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <div className="flex gap-2 mb-4">
+        <div className="bg-white rounded-lg shadow-sm p-4 mb-4">
+          {/* クイックフィルター */}
+          {!searchQuery && (
+            <div className="flex gap-1 mb-3">
+              {(['today', 'week', 'month', 'all'] as const).map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setQuickFilter(f)}
+                  className={`flex-1 py-1 text-sm rounded transition ${
+                    quickFilter === f
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  {f === 'today' ? '今日' : f === 'week' ? '今週' : f === 'month' ? '今月' : 'すべて'}
+                </button>
+              ))}
+            </div>
+          )}
+          {/* 検索 */}
+          <div className="flex gap-2 mb-2">
             <select
               value={searchType}
               onChange={(e) => setSearchType(e.target.value as any)}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              className="px-2 py-2 border border-gray-300 rounded-lg text-sm"
             >
-              <option value="text">全文検索</option>
-              <option value="date">日付検索</option>
-              <option value="keyword">キーワード検索</option>
+              <option value="text">全文</option>
+              <option value="date">日付</option>
             </select>
             <input
               type="text"
               placeholder={
                 searchType === 'date'
-                  ? '例: 2025-06-04'
-                  : searchType === 'keyword'
-                    ? 'キーワードを入力'
-                    : 'テキストを検索'
+                  ? '2026-06 または 2026-06-01~2026-06-30'
+                  : 'スペース区切りでAND検索'
               }
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="px-4 py-2 text-gray-600 hover:text-gray-900"
-              >
-                ✕
-              </button>
+              <button onClick={() => setSearchQuery('')} className="px-3 py-2 text-gray-600 hover:text-gray-900">✕</button>
             )}
           </div>
           <div className="flex justify-end">
