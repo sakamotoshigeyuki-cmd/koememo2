@@ -29,6 +29,15 @@ export default function Home() {
   const audioChunksRef = useRef<Blob[]>([])
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
+  const localDate = (d: Date) => {
+    const p = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+  }
+  const localTime = (d: Date) => {
+    const p = (n: number) => String(n).padStart(2, '0')
+    return `${p(d.getHours())}:${p(d.getMinutes())}`
+  }
+
   useEffect(() => {
     loadMemos()
     const saved = localStorage.getItem('recordingSource')
@@ -167,8 +176,8 @@ export default function Home() {
     setIsTranscribing(true)
 
     const now = new Date()
-    const date = now.toISOString().split('T')[0]
-    const time = now.toTimeString().slice(0, 5)
+    const date = localDate(now)
+    const time = localTime(now)
     const id = `memo_${Date.now()}`
 
     // 録音停止と同時にDownloadsフォルダに保存
@@ -243,8 +252,8 @@ export default function Home() {
       // ファイルの録音日時をIDに使い重複を防ぐ
       const recorded = new Date(file.lastModified)
       const id = `memo_pw_${file.lastModified}`
-      const date = recorded.toISOString().split('T')[0]
-      const time = recorded.toTimeString().slice(0, 5)
+      const date = localDate(recorded)
+      const time = localTime(recorded)
 
       try {
         const formData = new FormData()
@@ -329,8 +338,8 @@ export default function Home() {
   }
 
   const filterMemos = () => {
-    const today = new Date().toISOString().split('T')[0]
-    const weekAgo = new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    const today = localDate(new Date())
+    const weekAgo = localDate(new Date(Date.now() - 6 * 24 * 60 * 60 * 1000))
     const monthPrefix = today.slice(0, 7)
 
     if (!searchQuery) {
