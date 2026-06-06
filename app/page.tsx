@@ -16,8 +16,7 @@ export default function Home() {
   const [memos, setMemos] = useState<VoiceMemo[]>([])
   const [isRecording, setIsRecording] = useState(false)
   const [isTranscribing, setIsTranscribing] = useState(false)
-  const [recordingSource, setRecordingSource] = useState<string>('')
-  const [showSourceSelect, setShowSourceSelect] = useState(true)
+  const [recordingSource, setRecordingSource] = useState<string>('スマホ標準レコーダー')
   const [searchQuery, setSearchQuery] = useState('')
   const [searchType, setSearchType] = useState<'date' | 'text'>('text')
   const [quickFilter, setQuickFilter] = useState<'today' | 'week' | 'month' | 'all'>('today')
@@ -43,7 +42,6 @@ export default function Home() {
     const saved = localStorage.getItem('recordingSource')
     if (saved) {
       setRecordingSource(saved)
-      setShowSourceSelect(false)
     }
 
     const handleOnline = () => {
@@ -137,7 +135,6 @@ export default function Home() {
   const selectSource = (source: string) => {
     setRecordingSource(source)
     localStorage.setItem('recordingSource', source)
-    setShowSourceSelect(false)
   }
 
   const startRecording = async () => {
@@ -363,33 +360,6 @@ export default function Home() {
     return memos.filter(m => terms.every(term => m.text.includes(term)))
   }
 
-  if (showSourceSelect) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-        <div className="bg-white rounded-lg shadow-xl p-8 max-w-md w-full">
-          <h1 className="text-3xl font-bold mb-2 text-center text-gray-800">koememo2</h1>
-          <p className="text-center text-gray-600 mb-8">思いついたことを即座に音声で記録</p>
-
-          <div className="space-y-3">
-            <p className="text-sm font-semibold text-gray-700 mb-4">録音元を選択してください</p>
-            <button
-              onClick={() => selectSource('スマホ標準レコーダー')}
-              className="w-full px-4 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition"
-            >
-              スマホ標準レコーダー
-            </button>
-            <button
-              onClick={() => selectSource('Pixel Watch')}
-              className="w-full px-4 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium transition"
-            >
-              Pixel Watch
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   const filteredMemos = filterMemos()
 
   return (
@@ -405,15 +375,14 @@ export default function Home() {
                   オフラインモード
                 </span>
               )}
-              <button
-                onClick={() => {
-                  localStorage.removeItem('recordingSource')
-                  setShowSourceSelect(true)
-                }}
-                className="text-2xl leading-none text-gray-600 hover:text-gray-900"
+              <select
+                value={recordingSource}
+                onChange={(e) => selectSource(e.target.value)}
+                className="text-xl border-none bg-transparent cursor-pointer focus:outline-none"
               >
-                {recordingSource === 'Pixel Watch' ? '⌚' : '🎙️'}
-              </button>
+                <option value="スマホ標準レコーダー">🎙️</option>
+                <option value="Pixel Watch">⌚</option>
+              </select>
             </div>
           </div>
 
