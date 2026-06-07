@@ -622,10 +622,20 @@ export default function Home() {
                 {editingId === memo.id ? (
                   <div>
                     <textarea
+                      ref={(el) => {
+                        if (el) {
+                          el.style.height = 'auto'
+                          el.style.height = el.scrollHeight + 'px'
+                        }
+                      }}
                       value={editText}
-                      onChange={(e) => setEditText(e.target.value)}
+                      onChange={(e) => {
+                        setEditText(e.target.value)
+                        e.target.style.height = 'auto'
+                        e.target.style.height = e.target.scrollHeight + 'px'
+                      }}
                       className="w-full border border-blue-400 rounded-lg p-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                      rows={4}
+                      style={{ minHeight: '4rem' }}
                       autoFocus
                     />
                     <div className="flex gap-2 mt-2 justify-end">
